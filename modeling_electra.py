@@ -4,6 +4,7 @@ import warnings
 from dataclasses import dataclass
 from typing import Optional, Tuple
 import time
+import math
 
 #import torch_xla
 #import torch_xla.core.xla_model as xm
@@ -11,6 +12,7 @@ import time
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss, MSELoss
+from .my_util import Sentiment
 
 from .activations import get_activation
 from .configuration_electra import ElectraConfig
@@ -407,20 +409,26 @@ class ElectraClassificationHead(nn.Module):
 class ElectraForSequenceClassification(ElectraPreTrainedModel):
     def __init__(self,config):
         super().__init__(config)
+        self.weight, self.senti_list = Sentiment.getSentiment()
+        self.senti_vector_size = 96
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax()
-        #self.dk = torch.sqrt(torch.Tensor([256])) #vector_input_size
+        self.sqrt = math.sqrt(config.hidden_size)
         self.num_labels = config.num_labels
         self.electra = ElectraModel(config)
         self.classifier = ElectraClassificationHead(config)
+        self.embedding_size = config.embedding_size
+        self.hidden_size = config.hidden_size
         self.gru = nn.GRU(
-            input_size=256,
-            hidden_size=128,
-            num_layers=2,
+            input_size=self.hidden_size+self.senti_vector_size,
+            hidden_size=self.hidden_size,
+            num_layers=1,
             bias=True,
             bidirectional=True
         )
-        self.fc_layer = nn.Linear(768,256,bias=True)
+        self.proj_layer = nn.Linear(self.hidden_size*2,self.hidden_size)
+        self.fc_layer = nn.Linear(self.hidden_size,self.hidden_size,bias=True)
+        self.proj_layer_for_classification = nn.Linear(self.hidden_size*3,self.hidden_size)
         self.init_weights()
         
         
@@ -454,55 +462,60 @@ class ElectraForSequenceClassification(ElectraPreTrainedModel):
             output_hidden_states,
             return_dict,
         )
+
+        senti_vectors = []
+        for batch in range(input_ids.size()[0]):
+            senti_vectors.append([self.weight[int(self.senti_list[i])+2].to(my_device) for i in input_ids[batch][1:]])
+        
         input_size = discriminator_hidden_states_1[0].size()
         cur_batch_size = input_size[0]
         cur_token_size = input_size[1]
-        hidden_state = torch.randn(2*2,cur_token_size,128) # [num_layers*num_directions,batch_size,num_hidden]
+        hidden_state = torch.randn(1*2,cur_token_size-1,self.hidden_size) # [num_layers*num_directions,batch_size,num_hidden]
         hidden_state = hidden_state.to(my_device)
         if torch.cuda.is_available():
             hidden_state = hidden_state.cuda()
-        
+
         cls_vec = discriminator_hidden_states_1[0][:,0,:]
         cls_vec = cls_vec.to(my_device)
-
-        #print('sizeof discriminator',input_size)
-        #print(cur_batch_size,cur_token_size)
-        tmp = (discriminator_hidden_states_1[0][0,0,:]*self.relu(torch.dot(cls_vec[0,:],discriminator_hidden_states_1[0][0,0,:])/16)).unsqueeze(0)
-        #tmp = tmp.to(my_device)
         
-        for idx2 in range(1,cur_token_size):
-            scalar = self.relu(torch.dot(cls_vec[0,:],discriminator_hidden_states_1[0][0,idx2,:])/16)
-            res = discriminator_hidden_states_1[0][0,idx2,:]*scalar
+        token_vec = (discriminator_hidden_states_1[0][:,1:,:]).to(my_device) #except cls-vector
+
+        #attention and senti_vector concat
+        tmp = torch.cat(((token_vec[0,0,:]*(torch.dot(cls_vec[0,:],token_vec[0,0,:])/self.sqrt)),senti_vectors[0][0])).unsqueeze(0)
+
+        for idx in range(1,cur_token_size-1):
+            scalar = torch.dot(cls_vec[0,:],token_vec[0,idx,:])/self.sqrt
+            res = torch.cat((token_vec[0,idx,:]*scalar,senti_vectors[0][idx])) 
             tmp = torch.cat((tmp,res.unsqueeze(0)))
-        input_for_rnn = tmp
+        input_for_rnn = tmp.unsqueeze(0)
+        
         if cur_batch_size != 1:
-          for idx in range(1,cur_batch_size):
-              tmp = (discriminator_hidden_states_1[0][idx,0,:]*self.relu(torch.dot(cls_vec[idx,:],discriminator_hidden_states_1[0][idx,0,:])/16)).unsqueeze(0)
-              tmp = tmp.to(my_device)
-              for idx2 in range(1,cur_token_size):
-                  scalar = self.relu(torch.dot(cls_vec[idx,:],discriminator_hidden_states_1[0][idx,idx2,:])/16)
-                  res = discriminator_hidden_states_1[0][idx,idx2,:]*scalar
-                  tmp = torch.cat((tmp,res.unsqueeze(0)))
-              input_for_rnn = torch.cat((input_for_rnn,tmp))
-        input_for_rnn = input_for_rnn.view((-1,cur_token_size,256))
 
-        discriminator_hidden_states = self.gru(input_for_rnn,hidden_state)
+          for idx in range(1,cur_batch_size):
+              tmp = torch.cat(((token_vec[idx,0,:]*(torch.dot(cls_vec[idx,:],token_vec[idx,0,:])/self.sqrt)),senti_vectors[idx][0])).unsqueeze(0)
+              for idx2 in range(1,cur_token_size-1):
+                  scalar = torch.dot(cls_vec[idx,:],token_vec[idx,idx2,:])/self.sqrt
+                  res = torch.cat((token_vec[idx,idx2,:]*scalar,senti_vectors[idx][idx2]))
+                  tmp = torch.cat((tmp,res.unsqueeze(0)))
+              input_for_rnn = torch.cat((input_for_rnn,tmp.unsqueeze(0)))
+        #input_for_rnn = input_for_rnn.view((-1,cur_token_size,self.hidden_size))
         
-        discriminator_hidden_states = (discriminator_hidden_states[0].to(my_device),)
-        cls_vec = torch.unsqueeze(cls_vec,1)
-        tmp = self.fc_layer(torch.cat((cls_vec[0,0,:],discriminator_hidden_states[0][0,0,:],discriminator_hidden_states[0][0,cur_token_size-1,:])))
-        sequence_output = tmp
-        sequence_output = sequence_output.to(my_device)
+        discriminator_hidden_states = self.gru(input_for_rnn,hidden_state)
+        discriminator_hidden_states = (self.proj_layer(discriminator_hidden_states[0]),) #2*hidden_size to hidden_size(because of the gru layer is bi-directional)
+
+        discriminator_hidden_states = (self.relu(discriminator_hidden_states[0]).to(my_device),)
+
+        tmp = torch.cat((cls_vec[0,:].unsqueeze(0),discriminator_hidden_states[0][0,0,:].unsqueeze(0),discriminator_hidden_states[0][0,cur_token_size-2,:].unsqueeze(0)))
+        tmp = self.fc_layer(tmp)
+        sequence_output = self.proj_layer_for_classification(tmp.view(-1,self.hidden_size*3)).unsqueeze(0)
+        
         if cur_batch_size != 1:
           for idx in range(1,cur_batch_size):
-              tmp = self.fc_layer(torch.cat((cls_vec[idx,0,:],discriminator_hidden_states[0][idx,0,:],discriminator_hidden_states[0][idx,cur_token_size-1,:])))
-              sequence_output = torch.cat((sequence_output,tmp))
-        sequence_output = sequence_output.view(-1,256)
-        sequence_output = torch.unsqueeze(sequence_output,1)
+              tmp = torch.cat((cls_vec[idx,:].unsqueeze(0),discriminator_hidden_states[0][idx,0,:].unsqueeze(0),discriminator_hidden_states[0][idx,cur_token_size-2,:].unsqueeze(0)))
+              tmp = self.fc_layer(tmp)
+              sequence_output = torch.cat((sequence_output,self.proj_layer_for_classification(tmp.view(-1,self.hidden_size*3)).unsqueeze(0)))
+        #print('sequence size:',sequence_output.size())
         sequence_output = sequence_output.to(my_device)
-        
-        
-        sequence_output = discriminator_hidden_states_1[0]
 
         logits = self.classifier(sequence_output)
         loss = None
