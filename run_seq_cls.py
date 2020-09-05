@@ -3,6 +3,8 @@ import json
 import logging
 import os
 import glob
+import time
+import pickle
 
 import numpy as np
 import torch
@@ -14,7 +16,6 @@ from transformers import (
     AdamW,
     get_linear_schedule_with_warmup
 )
-
 from src import (
     CONFIG_CLASSES,
     TOKENIZER_CLASSES,
@@ -34,7 +35,6 @@ from processor import seq_cls_output_modes as output_modes
 
 
 logger = logging.getLogger(__name__)
-
 
 def train(args,
           model,
@@ -94,26 +94,27 @@ def train(args,
             if args.model_type not in ["distilkobert", "xlm-roberta"]:
                 inputs["token_type_ids"] = batch[2]  # Distilkobert, XLM-Roberta don't use segment_ids
             outputs = model(**inputs)
-
+            #print('model time:',time.time()-start)
             loss = outputs[0]
 
             if args.gradient_accumulation_steps > 1:
                 loss = loss / args.gradient_accumulation_steps
-
             loss.backward()
-            #xm.optimizer_step(optimizer, barrier=True)
+            #print('overall model loss time:',time.time()-start_loss)
+            
+            
             tr_loss += loss.item()
             if (step + 1) % args.gradient_accumulation_steps == 0 or (
                     len(train_dataloader) <= args.gradient_accumulation_steps
                     and (step + 1) == len(train_dataloader)
             ):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-
+                
+                #xm.optimizer_step(optimizer, barrier=True)
                 optimizer.step()
                 scheduler.step()
                 model.zero_grad()
                 global_step += 1
-
                 if args.logging_steps > 0 and global_step % args.logging_steps == 0:
                     if args.evaluate_test_during_training:
                         evaluate(args, model, test_dataset, "test", global_step)
@@ -137,10 +138,11 @@ def train(args,
                         torch.save(optimizer.state_dict(), os.path.join(output_dir, "optimizer.pt"))
                         torch.save(scheduler.state_dict(), os.path.join(output_dir, "scheduler.pt"))
                         logger.info("Saving optimizer and scheduler states to {}".format(output_dir))
+            
 
             if args.max_steps > 0 and global_step > args.max_steps:
                 break
-
+            
         mb.write("Epoch {} done".format(epoch + 1))
 
         if args.max_steps > 0 and global_step > args.max_steps:
@@ -180,22 +182,33 @@ def evaluate(args, model, eval_dataset, mode, global_step=None):
                 inputs["token_type_ids"] = batch[2]  # Distilkobert, XLM-Roberta don't use segment_ids
             outputs = model(**inputs)
             tmp_eval_loss, logits = outputs[:2]
-
+            #print('tmp_eval_loss',tmp_eval_loss)
             eval_loss += tmp_eval_loss.mean().item()
         nb_eval_steps += 1
         if preds is None:
             preds = logits.detach().cpu().numpy()
             out_label_ids = inputs["labels"].detach().cpu().numpy()
+            #print('1 preds',preds.size)
+            #print('1 out_label_ids',out_label_ids)
         else:
             preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
             out_label_ids = np.append(out_label_ids, inputs["labels"].detach().cpu().numpy(), axis=0)
+            #print('2 preds',preds.size)
+            #print('2 out_label_ids',out_label_ids)
 
     eval_loss = eval_loss / nb_eval_steps
     if output_modes[args.task] == "classification":
+        #print(preds)
         preds = np.argmax(preds, axis=1)
+        #print('preds',preds)
+        #print('out_label_ids',out_label_ids)
     elif output_modes[args.task] == "regression":
         preds = np.squeeze(preds)
+        #print('4 preds',preds)
+        
+        
     result = compute_metrics(args.task, out_label_ids, preds)
+    #print('result',result)
     results.update(result)
 
     output_dir = os.path.join(args.output_dir, mode)
@@ -214,16 +227,14 @@ def evaluate(args, model, eval_dataset, mode, global_step=None):
 
 def main(cli_args):
     # Read from config file and make args
-    print('cli_args: ')
-    print(cli_args)
     my_path = '/gdrive/My Drive/nlp/KoElectra/finetune/'
     with open(os.path.join(my_path+cli_args.config_dir, cli_args.task, cli_args.config_file)) as f:
         args = AttrDict(json.load(f))
     logger.info("Training/evaluation parameters {}".format(args))
-
-    args.output_dir = os.path.join(args.ckpt_dir, args.output_dir)
-    print('args: ')
+    print('args:')
     print(args)
+    args.output_dir = os.path.join(args.ckpt_dir, args.output_dir)
+    
     init_logger()
     set_seed(args)
 
@@ -247,16 +258,19 @@ def main(cli_args):
     )
     model = MODEL_FOR_SEQUENCE_CLASSIFICATION[args.model_type].from_pretrained(
         args.model_name_or_path,
+        from_tf=True,
         config=config
     )
-
-    # GPU or CPU
+    # GPU or CPU or TPU(Google Colab)
     args.device = "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
     #args.device = xm.xla_device()
     model.to(args.device)
-    print('device: ')
-    print(args.device)
-
+    
+    #print('loading___')
+    #loaded = torch.load("/gdrive/My Drive/nlp/KoElectra/finetune/koelectra-base-nsmc-ckpt_full_dataset_4epoch_64_batch_size/checkpoint-12000/pytorch_model.bin",map_location='cuda')  #torch.load(PATH,map_location), map_location은 model을 load하는 device 종류
+    #print('loaded')
+    #print(loaded)
+    #model.load_state_dict(loaded,strict=False)
     # Load dataset
     train_dataset = load_and_cache_examples(args, tokenizer, mode="train") if args.train_file else None
     dev_dataset = load_and_cache_examples(args, tokenizer, mode="dev") if args.dev_file else None
@@ -272,7 +286,7 @@ def main(cli_args):
     results = {}
     if args.do_eval:
         checkpoints = list(
-            os.path.dirname(c) for c in sorted(glob.glob(args.output_dir + "/**/" + "pytorch_model.pt", recursive=True))
+            os.path.dirname(c) for c in sorted(glob.glob(args.output_dir + "/**/" + "pytorch_model.bin", recursive=True))
         )
         if not args.eval_all_checkpoints:
             checkpoints = checkpoints[-1:]
