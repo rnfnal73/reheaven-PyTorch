@@ -2,6 +2,8 @@
 
 - 모델 배포: [깃허브](https://github.com/mario3316/reheaven-PyTorch)
 
+- 모델 가중치 다운로드: [구글 드라이브](https://drive.google.com/drive/folders/13DEquqxwQxWa_zEe78mmpCO9TK2JfYCP)
+
 - 실행 환경: **Google Colab**
 
 
