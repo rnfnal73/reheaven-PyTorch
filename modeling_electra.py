@@ -6,9 +6,6 @@ from typing import Optional, Tuple
 import time
 import math
 
-#import torch_xla
-#import torch_xla.core.xla_model as xm
-
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss, MSELoss
@@ -419,6 +416,7 @@ class ElectraForSequenceClassification(ElectraPreTrainedModel):
         self.classifier = ElectraClassificationHead(config)
         self.embedding_size = config.embedding_size
         self.hidden_size = config.hidden_size
+        
         self.gru = nn.GRU(
             input_size=self.hidden_size+self.senti_vector_size,
             hidden_size=self.hidden_size,
@@ -426,10 +424,30 @@ class ElectraForSequenceClassification(ElectraPreTrainedModel):
             bias=True,
             bidirectional=True
         )
+        """
+        self.gru = nn.GRU(
+            input_size=self.hidden_size,
+            hidden_size=self.hidden_size,
+            num_layers=1,
+            bias=True,
+            bidirectional=True
+        )
+        """
+        
         self.proj_layer = nn.Linear(self.hidden_size*2,self.hidden_size)
         self.fc_layer = nn.Linear(self.hidden_size,self.hidden_size,bias=True)
+        
+        """
+        #CLS,first and last token concat
         self.proj_layer_for_classification = nn.Linear(self.hidden_size*3,self.hidden_size)
+        """
+        self.proj_layer_for_classification = nn.Linear(self.hidden_size*49,self.hidden_size)
+        
         self.init_weights()
+        
+        
+
+        
         
         
         
@@ -449,7 +467,7 @@ class ElectraForSequenceClassification(ElectraPreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         
         
-        my_device = torch.device('cuda')#xm.xla_device()
+        my_device = torch.device('cpu')#xm.xla_device()#
         
         discriminator_hidden_states_1 = self.electra(
             input_ids,
@@ -462,15 +480,17 @@ class ElectraForSequenceClassification(ElectraPreTrainedModel):
             output_hidden_states,
             return_dict,
         )
-
+        
+        
         senti_vectors = []
         for batch in range(input_ids.size()[0]):
-            senti_vectors.append([self.weight[int(self.senti_list[i])+2].to(my_device) for i in input_ids[batch][1:]])
+            senti_vectors.append([self.weight[int(self.senti_list[i])+2].to(my_device) for i in input_ids[batch][:]])
+        
         
         input_size = discriminator_hidden_states_1[0].size()
         cur_batch_size = input_size[0]
         cur_token_size = input_size[1]
-        hidden_state = torch.randn(1*2,cur_token_size-1,self.hidden_size) # [num_layers*num_directions,batch_size,num_hidden]
+        hidden_state = torch.randn(1*2,cur_token_size,self.hidden_size) # [num_layers*num_directions,batch_size,num_hidden]
         hidden_state = hidden_state.to(my_device)
         if torch.cuda.is_available():
             hidden_state = hidden_state.cuda()
@@ -478,45 +498,34 @@ class ElectraForSequenceClassification(ElectraPreTrainedModel):
         cls_vec = discriminator_hidden_states_1[0][:,0,:]
         cls_vec = cls_vec.to(my_device)
         
-        token_vec = (discriminator_hidden_states_1[0][:,1:,:]).to(my_device) #except cls-vector
-
+        token_vec = (discriminator_hidden_states_1[0][:,:,:]).to(my_device) #except cls-vector
+        
+        
         #attention and senti_vector concat
         tmp = torch.cat(((token_vec[0,0,:]*(torch.dot(cls_vec[0,:],token_vec[0,0,:])/self.sqrt)),senti_vectors[0][0])).unsqueeze(0)
 
-        for idx in range(1,cur_token_size-1):
+        for idx in range(1,cur_token_size):
             scalar = torch.dot(cls_vec[0,:],token_vec[0,idx,:])/self.sqrt
             res = torch.cat((token_vec[0,idx,:]*scalar,senti_vectors[0][idx])) 
             tmp = torch.cat((tmp,res.unsqueeze(0)))
         input_for_rnn = tmp.unsqueeze(0)
         
         if cur_batch_size != 1:
-
           for idx in range(1,cur_batch_size):
               tmp = torch.cat(((token_vec[idx,0,:]*(torch.dot(cls_vec[idx,:],token_vec[idx,0,:])/self.sqrt)),senti_vectors[idx][0])).unsqueeze(0)
-              for idx2 in range(1,cur_token_size-1):
+              for idx2 in range(1,cur_token_size):
                   scalar = torch.dot(cls_vec[idx,:],token_vec[idx,idx2,:])/self.sqrt
                   res = torch.cat((token_vec[idx,idx2,:]*scalar,senti_vectors[idx][idx2]))
                   tmp = torch.cat((tmp,res.unsqueeze(0)))
               input_for_rnn = torch.cat((input_for_rnn,tmp.unsqueeze(0)))
-        #input_for_rnn = input_for_rnn.view((-1,cur_token_size,self.hidden_size))
         
         discriminator_hidden_states = self.gru(input_for_rnn,hidden_state)
         discriminator_hidden_states = (self.proj_layer(discriminator_hidden_states[0]),) #2*hidden_size to hidden_size(because of the gru layer is bi-directional)
-
-        discriminator_hidden_states = (self.relu(discriminator_hidden_states[0]).to(my_device),)
-
-        tmp = torch.cat((cls_vec[0,:].unsqueeze(0),discriminator_hidden_states[0][0,0,:].unsqueeze(0),discriminator_hidden_states[0][0,cur_token_size-2,:].unsqueeze(0)))
-        tmp = self.fc_layer(tmp)
-        sequence_output = self.proj_layer_for_classification(tmp.view(-1,self.hidden_size*3)).unsqueeze(0)
         
-        if cur_batch_size != 1:
-          for idx in range(1,cur_batch_size):
-              tmp = torch.cat((cls_vec[idx,:].unsqueeze(0),discriminator_hidden_states[0][idx,0,:].unsqueeze(0),discriminator_hidden_states[0][idx,cur_token_size-2,:].unsqueeze(0)))
-              tmp = self.fc_layer(tmp)
-              sequence_output = torch.cat((sequence_output,self.proj_layer_for_classification(tmp.view(-1,self.hidden_size*3)).unsqueeze(0)))
-        #print('sequence size:',sequence_output.size())
+        discriminator_hidden_states = self.relu(discriminator_hidden_states[0]).to(my_device)
+        sequence_output = discriminator_hidden_states
         sequence_output = sequence_output.to(my_device)
-
+        
         logits = self.classifier(sequence_output)
         loss = None
         
@@ -531,20 +540,20 @@ class ElectraForSequenceClassification(ElectraPreTrainedModel):
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
         #loss = loss.to(my_device)
         if not return_dict:
-            output = (logits,) + discriminator_hidden_states[1:]
+            output = (logits,) + discriminator_hidden_states_1[1:]
             return ((loss,) + output) if loss is not None else output
         
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits,
-            hidden_states=discriminator_hidden_states.hidden_states.to(my_device),
-            attentions=discriminator_hidden_states.attentions.to(my_device),
+            hidden_states=discriminator_hidden_states_1.hidden_states.to(my_device),
+            attentions=discriminator_hidden_states_1.attentions.to(my_device),
         )
+
+
+
+
 '''
-
-
-
-
 @add_start_docstrings(
     """ELECTRA Model transformer with a sequence classification/regression head on top (a linear layer on top of
     the pooled output) e.g. for GLUE tasks. """,
@@ -599,11 +608,8 @@ class ElectraForSequenceClassification(ElectraPreTrainedModel):
             output_hidden_states,
             return_dict,
         )
-        print(discriminator_hidden_states[0].size())
         sequence_output = discriminator_hidden_states[0]
         logits = self.classifier(sequence_output)
-        print(sequence_output.size())
-        print(logits.size())
         loss = None
         if labels is not None:
             if self.num_labels == 1:
@@ -616,9 +622,6 @@ class ElectraForSequenceClassification(ElectraPreTrainedModel):
         
         if not return_dict:
             output = (logits,) + discriminator_hidden_states[1:]
-            print(logits.size())
-            print(type(output))
-            print(output[0].size())
             return ((loss,) + output) if loss is not None else output
 
         return SequenceClassifierOutput(
