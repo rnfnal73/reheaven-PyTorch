@@ -84,4 +84,6 @@ wordpiece_base 모델이 tensorflow로 작성된 모델이기 때문에 로딩 �
 ![done](https://user-images.githubusercontent.com/40377057/93166186-e89ce300-f758-11ea-9d9d-448560a39cef.png)
 
 아래와 같이 test_output.txt를 확인할 수 있습니다
+
+1은 긍정, 0은 부정을 나타내며 문장의 순서와 일치합니다
 ![test_output](https://user-images.githubusercontent.com/40377057/93165906-3d8c2980-f758-11ea-8f22-38ae0fccc129.png)
