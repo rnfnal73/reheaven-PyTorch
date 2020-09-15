@@ -2,7 +2,7 @@
 
 - 모델 배포: [깃허브](https://github.com/mario3316/reheaven-PyTorch)
 
-- 모델 가중치 다운로드: [구글 드라이브](https://drive.google.com/drive/folders/13DEquqxwQxWa_zEe78mmpCO9TK2JfYCP)
+- 모델 가중치 다운로드: [구글 드라이브](https://drive.google.com/drive/folders/1TmNXriWMGAGYrAnEWP7pHL0MmVtwW_eQ?usp=sharing)
 
 - 실행 환경: **Google Colab**
 
@@ -23,7 +23,7 @@
 
 ![unzip](https://user-images.githubusercontent.com/40377057/93164372-509cfa80-f754-11ea-8657-2544496dea09.png)
 
-준비가 되면 [구글 드라이브 공유 링크](https://drive.google.com/drive/folders/13DEquqxwQxWa_zEe78mmpCO9TK2JfYCP)에서 베이스 모델인 **wordpiece_base** 폴더와 가중치 파일인 **pytorch_model.bin**을 내려받습니다
+준비가 되면 [구글 드라이브 공유 링크](https://drive.google.com/drive/folders/1TmNXriWMGAGYrAnEWP7pHL0MmVtwW_eQ?usp=sharing)에서 베이스 모델인 **wordpiece_base** 폴더와 가중치 파일인 **pytorch_model.bin**을 내려받습니다
 
 
 ![weight_file](https://user-images.githubusercontent.com/40377057/93164373-509cfa80-f754-11ea-9b46-8f94c146d93b.png)
