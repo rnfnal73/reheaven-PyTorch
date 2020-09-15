@@ -9,20 +9,19 @@
 
 
 
-## 1. **Git**과 **Github**  
+## 1. 모델 실행 준비  
 
-### **Git**이란
-Git이란 소스코드를 효과적으로 관리하기 위해 개발된 '분산형 버전 관리 시스템'입니다.  
-Git에서는 소스 코드가 변경된 이력을 쉽게 확인할 수 있고, 특정 시점에 저장된 버전과 비교하거나 특정 시점으로 되돌아갈 수도 있습니다.  
-또 내가 올리려는 파일이 누군가 편집한 내용과 충돌한다면, 서버에 업로드 할 때 경고 메시지가 발생됩니다.  
+간편한 모델 실행과 가중치 로드를 위해 [**Google Colaboratory**](https://colab.research.google.com/notebooks/intro.ipynb)을 실행 환경으로 사용합니다.
 
-### **Repository**에 대해
-저장소(Git repository)란 말그대로 파일이나 폴더를 저장해 두는 곳입니다.  
-그런데 Git 저장소가 제공하는 좋은 점 중 하나는 파일이 변경 이력 별로 구분되어 저장된다는 점입니다.  
-비슷한 파일이라도 실제 내용 일부 문구가 서로 다르면 다른 파일로 인식하기 때문에 파일을 변경 사항 별로 구분해 저장할 수 있습니다.  
+모델 실행을 위해서 모델의 source code와 base model, weight 파일을 준비하고 Google Drive에 업로드 해야 합니다.
 
-원격 저장소(Remote Repository): 파일이 원격 저장소 전용 서버에서 관리되며 여러 사람이 함께 공유하기 위한 저장소입니다.  
-로컬 저장소(Local Repository): 내 PC에 파일이 저장되는 개인 전용 저장소입니다.
+![download_model](https://user-images.githubusercontent.com/40377057/93164392-54c91800-f754-11ea-8b80-81b6d377d2d9.png)
+아래 링크를 이용해 프로젝트 파일을 .zip형태로 내려받습니다
+[깃허브](https://github.com/mario3316/reheaven-PyTorch) 
+
+준비가 되면 아래 구글 드라이브 공유 링크에서 베이스 모델인 **wordpiece_base** 폴더와 가중치 파일인 **pytorch_model.bin**을 내려받습니다
+[구글 드라이브](https://drive.google.com/drive/folders/13DEquqxwQxWa_zEe78mmpCO9TK2JfYCP)
+
 
 ### **Commit**
 파일 및 폴더의 추가/변경 사항을 저장소에 기록하려면 '커밋'이란 버튼을 눌러줘야 합니다.
