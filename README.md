@@ -73,7 +73,7 @@ input data와 실행 준비가 완료됐다면, 마지막으로 reheaven.ipynb�
 
 ![colab_execute4](https://user-images.githubusercontent.com/40377057/93164382-5266be00-f754-11ea-9180-a363f6716f2e.png)
 
-![colab_execute5](https://user-images.githubusercontent.com/40377057/-52ff5480-f754-11ea-832e-3e96890e87d5.png)
+![colab_execute5](https://user-images.githubusercontent.com/40377057/93166373-5517e200-f759-11ea-955b-977293a9469b.png)
 
 ![colab_execute6](https://user-images.githubusercontent.com/40377057/93164385-5397eb00-f754-11ea-9301-4b4d82b1f78f.png)
 
