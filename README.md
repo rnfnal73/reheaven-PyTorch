@@ -82,3 +82,6 @@ wordpiece_base 모델이 tensorflow로 작성된 모델이기 때문에 로딩 �
 아래와 같은 결과 화면(done)이 나온다면 test_output.txt의 작성이 완료된 것으로 결과를 확인하면 됩니다
 
 ![done](https://user-images.githubusercontent.com/40377057/93166186-e89ce300-f758-11ea-9d9d-448560a39cef.png)
+
+아래와 같이 test_output.txt를 확인할 수 있습니다
+![test_output](https://user-images.githubusercontent.com/40377057/93165906-3d8c2980-f758-11ea-8f22-38ae0fccc129.png)
