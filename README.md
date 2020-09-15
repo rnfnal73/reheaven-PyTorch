@@ -16,20 +16,33 @@
 모델 실행을 위해서 모델의 source code와 base model, weight 파일을 준비하고 Google Drive에 업로드 해야 합니다.
 
 ![download_model](https://user-images.githubusercontent.com/40377057/93164392-54c91800-f754-11ea-8b80-81b6d377d2d9.png)
-아래 링크를 이용해 프로젝트 파일을 .zip형태로 내려받습니다
-[깃허브](https://github.com/mario3316/reheaven-PyTorch) 
+[링크](https://github.com/mario3316/reheaven-PyTorch) 를 이용해 프로젝트 파일을 .zip형태로 내려받습니다
 
-준비가 되면 아래 구글 드라이브 공유 링크에서 베이스 모델인 **wordpiece_base** 폴더와 가중치 파일인 **pytorch_model.bin**을 내려받습니다
-[구글 드라이브](https://drive.google.com/drive/folders/13DEquqxwQxWa_zEe78mmpCO9TK2JfYCP)
+![model_weight](https://user-images.githubusercontent.com/40377057/93164367-4ed33700-f754-11ea-98dc-39fdb4b32904.png)
+![unzip](https://user-images.githubusercontent.com/40377057/93164372-509cfa80-f754-11ea-8657-2544496dea09.png)
+준비가 되면 [구글 드라이브 공유 링크](https://drive.google.com/drive/folders/13DEquqxwQxWa_zEe78mmpCO9TK2JfYCP)에서 베이스 모델인 **wordpiece_base** 폴더와 가중치 파일인 **pytorch_model.bin**을 내려받습니다
 
 
-### **Commit**
-파일 및 폴더의 추가/변경 사항을 저장소에 기록하려면 '커밋'이란 버튼을 눌러줘야 합니다.
+![weight_file](https://user-images.githubusercontent.com/40377057/93164373-509cfa80-f754-11ea-9b46-8f94c146d93b.png)
+wordpiece_base 폴더와 pytorch_model.bin 파일을 압축 해제된 프로젝트 폴더 reheaven-PyTorch-master에 붙여넣습니다
 
-커밋 버튼을 누르면 이전 커밋 상태부터 현재 상태까지의 변경 이력이 기록된 커밋(혹은 리비전)이 만들어집니다.
 
-커밋은 이렇게 이력을 남기는 중요한 작업이기 때문에 커밋 버튼을 누를땐 커밋 메시지를 필수로 입력해야 합니다. 
-메시지가 없으면 커밋이 실행되지 않습니다.
+![folder_upload](https://user-images.githubusercontent.com/40377057/93164401-5692db80-f754-11ea-99c2-3453150f6103.png)
+![folder_upload2](https://user-images.githubusercontent.com/40377057/93164402-5692db80-f754-11ea-9980-19cd4d73ff09.png)
+그 후 reheaven-PyTorch-master 폴더 전체를 구글 드라이브에 업로드 합니다
+
+
+## 2. 구글 드라이브에서 .ipynb 실행하기
+구글 드라이브에 업로드한 reheaven-PyTorch-master 내 reheaven.ipynb 파일은 jupyter notebook 파일로 Google Colab 환경에서 실행이 가능합니다. 이를 통해 터미널 명령어와 파이썬 스크립트를 손쉽게 실행해볼 수 있습니다.
+
+![colab_connect](https://user-images.githubusercontent.com/40377057/93164374-51359100-f754-11ea-91ec-4ab223e33fa2.png)
+![colab_install](https://user-images.githubusercontent.com/40377057/93164387-5397eb00-f754-11ea-9959-daee6d0d8191.png)
+![colab_install_2](https://user-images.githubusercontent.com/40377057/93164389-54308180-f754-11ea-9f7c-69152d638284.png)
+먼저 구글 드라이브에서 reheaven.ipynb 파일을 찾고 오른쪽 버튼을 클릭해 Google Colab을 설치,연결하는 작업을 진행합니다
+
+
+
+
 
 ### **Push**
 내 PC의 로컬 저장소에서 변경된 이력을 원격 저장소에 공유하려면, 로컬 저장소의 변경 이력을 원격 저장소에 업로드해야 합니다.
